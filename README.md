@@ -1,2 +1,0 @@
-# Quantum-HaQthon
-QRNG 
