@@ -1,15 +1,3 @@
-"""
-Quantum Random Number Generator (QRNG)
-A Streamlit application that generates true random numbers using quantum superposition.
-
-Installation:
-pip install qiskit qiskit-aer streamlit numpy scipy pandas matplotlib
-
-Run:
-streamlit run app.py
-
-Author: Hackathon Team
-"""
 
 import streamlit as st
 import numpy as np
@@ -24,18 +12,13 @@ from io import StringIO
 from qiskit import QuantumCircuit, transpile
 from qiskit_aer import AerSimulator
 
-# ============================================================================
-# PAGE CONFIGURATION
-# ============================================================================
 
 st.set_page_config(
     page_title="Quantum Random Number Generator",
     layout="wide"
 )
 
-# ============================================================================
 # CUSTOM CSS STYLING
-# ============================================================================
 
 st.markdown("""
 <style>
@@ -171,20 +154,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ============================================================================
 # HELPER FUNCTIONS
-# ============================================================================
 
 def generate_encryption_key(n_bits):
-    """
-    Generate a quantum random encryption key.
-
-    Args:
-        n_bits (int): Number of bits for the key
-
-    Returns:
-        str: Binary string representing the encryption key
-    """
+   
     # For large keys, generate in chunks to avoid qubit limits
     if n_bits > 28:
         # Generate in 28-bit chunks and concatenate
@@ -201,15 +174,7 @@ def generate_encryption_key(n_bits):
 
 
 def generate_encryption_key_chunk(n_bits):
-    """
-    Generate a quantum random key chunk (max 28 bits).
-
-    Args:
-        n_bits (int): Number of bits (max 28)
-
-    Returns:
-        str: Binary string
-    """
+   
     # Create quantum circuit
     qc = QuantumCircuit(n_bits, n_bits)
     for i in range(n_bits):
@@ -229,17 +194,7 @@ def generate_encryption_key_chunk(n_bits):
 
 
 def simulate_secure_transaction(amount, recipient, key_bits):
-    """
-    Simulate a secure financial transaction using quantum random encryption.
-
-    Args:
-        amount (float): Transaction amount
-        recipient (str): Recipient identifier
-        key_bits (int): Number of bits for encryption key
-
-    Returns:
-        dict: Transaction details with encryption
-    """
+   
     # Generate quantum random transaction ID
     transaction_id = generate_encryption_key(64)  # 64-bit transaction ID
 
@@ -267,15 +222,7 @@ def simulate_secure_transaction(amount, recipient, key_bits):
     }
 
 def create_qrng_circuit(n_qubits):
-    """
-    Create a quantum circuit for random number generation.
-    
-    Args:
-        n_qubits (int): Number of qubits to use
-        
-    Returns:
-        QuantumCircuit: Circuit with Hadamard gates and measurements
-    """
+   
     # Create quantum circuit with n qubits and n classical bits
     qc = QuantumCircuit(n_qubits, n_qubits)
     
@@ -290,17 +237,7 @@ def create_qrng_circuit(n_qubits):
 
 
 def run_quantum_simulation(circuit, shots, optimization_level):
-    """
-    Execute the quantum circuit on the Aer simulator.
-    
-    Args:
-        circuit (QuantumCircuit): The quantum circuit to execute
-        shots (int): Number of times to run the circuit
-        optimization_level (int): Transpiler optimization level (0-3)
-        
-    Returns:
-        tuple: (counts dict, execution time in seconds)
-    """
+   
     # Initialize the Aer simulator
     simulator = AerSimulator()
     
@@ -324,30 +261,12 @@ def run_quantum_simulation(circuit, shots, optimization_level):
 
 
 def bitstring_to_int(bitstring):
-    """
-    Convert a binary string to an integer.
     
-    Args:
-        bitstring (str): Binary string (e.g., '101')
-        
-    Returns:
-        int: Integer representation
-    """
     return int(bitstring, 2)
 
 
 def process_results(counts, n_qubits, shots):
-    """
-    Process quantum measurement results into a structured format.
     
-    Args:
-        counts (dict): Raw counts from quantum measurement
-        n_qubits (int): Number of qubits used
-        shots (int): Total number of shots
-        
-    Returns:
-        pandas.DataFrame: Processed results with outcomes, counts, and probabilities
-    """
     # Create a list to store results
     results_list = []
     
@@ -369,17 +288,8 @@ def process_results(counts, n_qubits, shots):
     
     return df
 
-
 def calculate_shannon_entropy(probabilities):
-    """
-    Calculate Shannon entropy of a probability distribution.
     
-    Args:
-        probabilities (array-like): Probability values
-        
-    Returns:
-        float: Shannon entropy in bits
-    """
     # Filter out zero probabilities to avoid log(0)
     p = np.array(probabilities)
     p = p[p > 0]
@@ -389,18 +299,8 @@ def calculate_shannon_entropy(probabilities):
     
     return entropy
 
-
 def chi_square_uniformity_test(observed_counts, expected_count):
-    """
-    Perform chi-square test for uniformity.
     
-    Args:
-        observed_counts (array-like): Observed frequencies
-        expected_count (float): Expected frequency for uniform distribution
-        
-    Returns:
-        tuple: (chi-square statistic, p-value)
-    """
     observed = np.array(observed_counts)
     expected = np.full_like(observed, expected_count, dtype=float)
     
@@ -411,31 +311,14 @@ def chi_square_uniformity_test(observed_counts, expected_count):
 
 
 def generate_sha256_hash(bitstrings):
-    """
-    Generate SHA-256 hash of concatenated bitstrings.
     
-    Args:
-        bitstrings (list): List of binary strings
-        
-    Returns:
-        str: SHA-256 hash in hexadecimal
-    """
     concatenated = ''.join(bitstrings)
     hash_object = hashlib.sha256(concatenated.encode())
     return hash_object.hexdigest()
 
 
 def generate_classical_random(n_qubits, shots):
-    """
-    Generate classical pseudo-random numbers for comparison.
     
-    Args:
-        n_qubits (int): Number of bits (to match quantum range)
-        shots (int): Number of random numbers to generate
-        
-    Returns:
-        pandas.DataFrame: Results in same format as quantum results
-    """
     max_value = 2 ** n_qubits - 1
     random_ints = np.random.randint(0, max_value + 1, shots)
     
@@ -460,9 +343,8 @@ def generate_classical_random(n_qubits, shots):
     return df
 
 
-# ============================================================================
+
 # STREAMLIT UI
-# ============================================================================
 
 # Title and description
 st.title("Quantum Random Number Generator")
@@ -543,9 +425,7 @@ if demo_mode == "Random Number Generation":
     st.markdown("---")
     run_button = st.button("Generate Random Numbers", type="primary", use_container_width=True)
 
-# ============================================================================
 # MAIN EXECUTION
-# ============================================================================
 
 if demo_mode == "Secure Financial Transactions":
     st.header("Secure Financial Transaction Demo")
@@ -895,9 +775,7 @@ elif demo_mode == "Random Number Generation" and run_button:
     st.code(f"Binary: {sample_bitstring}", language=None)
     st.caption("This is a single quantum-generated random number for immediate reference")
     
-    # ========================================================================
     # QUANTUM CIRCUIT SETUP
-    # ========================================================================
 
     st.subheader("Quantum Circuit")
     
@@ -908,9 +786,7 @@ elif demo_mode == "Random Number Generation" and run_button:
     circuit_text = qc.draw(output='text')
     st.text(circuit_text)
     
-    # ========================================================================
     # QUANTUM SIMULATION
-    # ========================================================================
 
     st.subheader("Quantum Simulation")
     
@@ -923,9 +799,7 @@ elif demo_mode == "Random Number Generation" and run_button:
     
     st.success(f"Simulation completed in {exec_time:.3f} seconds")
     
-    # ========================================================================
     # RESULTS PROCESSING
-    # ========================================================================
 
     st.subheader("Results")
     
@@ -948,9 +822,7 @@ elif demo_mode == "Random Number Generation" and run_button:
             width='stretch'
         )
     
-    # ========================================================================
     # VISUALIZATION
-    # ========================================================================
 
     st.subheader("Distribution Visualization")
     
@@ -1029,9 +901,7 @@ elif demo_mode == "Random Number Generation" and run_button:
     plt.tight_layout()
     st.pyplot(fig)
     
-    # ========================================================================
     # STATISTICAL ANALYSIS
-    # ========================================================================
     
     st.subheader("Statistical Analysis")
     
@@ -1086,9 +956,7 @@ elif demo_mode == "Random Number Generation" and run_button:
         good quantum randomness.
         """)
     
-    # ========================================================================
     # CRYPTOGRAPHIC HASH (OPTIONAL)
-    # ========================================================================
 
     with st.expander("Cryptographic Hash (SHA-256)"):
         st.markdown("""
@@ -1104,9 +972,7 @@ elif demo_mode == "Random Number Generation" and run_button:
         st.code(hash_value, language=None)
         st.caption(f"Hash of {len(all_bitstrings)} bitstrings ({len(all_bitstrings) * n_qubits} bits)")
     
-    # ========================================================================
     # CSV DOWNLOAD
-    # ========================================================================
     
     if enable_download:
         st.subheader("Download Results")
@@ -1152,13 +1018,13 @@ else:
     - Scientific research requiring unbiased randomness
     """)
 
-# ============================================================================
+
 # FOOTER
-# ============================================================================
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("""
 **About**  
 Built with Qiskit and Streamlit  
 Quantum simulation via AerSimulator
+By Team LOCO MINDS
 """)
