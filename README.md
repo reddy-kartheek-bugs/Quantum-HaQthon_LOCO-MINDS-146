@@ -1,4 +1,7 @@
 # Quantum Random Number Generator (QRNG) Project
+# TEAM LOCO MINDS - 146
+
+# QRNG
 
 A comprehensive quantum random number generation project featuring both a command-line terminal application and an interactive web-based Streamlit application. This project leverages quantum superposition principles using Qiskit to produce truly random numbers, unlike classical pseudo-random number generators.
 
@@ -246,7 +249,12 @@ Contributions are welcome! Please ensure code follows existing style and include
 
 ## Authors
 
-Team LOCO MINDS
+Team LOCO MINDS - 146
+- G Reddy Kartheek
+- T Satyaveni
+- K Lakshmi Pavani
+- B Himaja
+- K Keerthi
 
 ## Related Projects
 
