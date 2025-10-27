@@ -9,12 +9,13 @@ A comprehensive quantum random number generation project featuring both a comman
 
 This QRNG project demonstrates quantum computing applications by using Hadamard gates to create superposition states in qubits. When measured, these states collapse into random classical bits, providing true randomness that cannot be predicted even with infinite computational power.
 
-The project includes two implementations:
+The project includes three implementations:
 
 1. **qrng.py**: A command-line Python script for generating quantum random numbers with statistical analysis and visualization.
 2. **app.py**: An interactive Streamlit web application offering multiple demos including random number generation, secure financial transactions, and cryptocurrency applications.
+3. **new.py**: An enhanced Streamlit web application with additional quantum random number generation methods, including Bell state entanglement and Ry gate rotations, alongside expanded demos for financial and cryptocurrency applications.
 
-Both implementations use Qiskit for quantum circuit simulation and provide statistical validation of randomness quality.
+All implementations use Qiskit for quantum circuit simulation and provide statistical validation of randomness quality.
 
 ## Installation
 
@@ -29,8 +30,8 @@ Install the required packages for the command-line application:
 pip install qiskit qiskit-aer numpy scipy matplotlib
 ```
 
-### Dependencies for app.py (Web Application)
-Install the additional packages required for the Streamlit web app:
+### Dependencies for app.py and new.py (Web Applications)
+Install the additional packages required for the Streamlit web apps:
 
 ```bash
 pip install qiskit qiskit-aer numpy scipy matplotlib streamlit pandas
@@ -103,6 +104,24 @@ The web app provides three main demo modes:
 2. **Secure Financial Transactions**: Demo of quantum-generated encryption keys for banking
 3. **Cryptocurrency & Blockchain**: Applications in wallet generation, transaction nonces, and mining
 
+### Running new.py (Enhanced Web Application)
+
+Launch the enhanced Streamlit web application with additional quantum methods:
+
+```bash
+streamlit run new.py
+```
+
+This will start a local web server (typically at http://localhost:8501). Open this URL in your web browser to access the application.
+
+The enhanced web app provides five main demo modes:
+
+1. **Random Number Generation**: Interactive quantum RNG with configurable parameters
+2. **Secure Financial Transactions**: Demo of quantum-generated encryption keys for banking
+3. **Cryptocurrency & Blockchain**: Applications in wallet generation, transaction nonces, and mining
+4. **Bell State QRNG**: Quantum random number generation using entangled Bell states
+5. **Ry Gate QRNG**: Quantum random number generation using Ry gate rotations
+
 ## Features
 
 ### qrng.py (Terminal Version) Features
@@ -164,6 +183,44 @@ The web app provides three main demo modes:
 - XOR encryption simulation
 - Transaction security flow visualization
 
+### new.py (Enhanced Web Application) Features
+
+#### Advanced Quantum Methods
+- **Bell State QRNG**: Uses maximally entangled Bell states for true random number generation
+- **Ry Gate QRNG**: Employs Ry(π/2) rotation gates for alternative superposition creation
+- **Entanglement Analysis**: Demonstrates quantum correlations and entanglement verification
+
+#### Enhanced Demo Modes
+- **Random Number Generation**: Core QRNG functionality with live visualization
+- **Secure Financial Transactions**: Quantum key generation for transaction encryption
+- **Cryptocurrency & Blockchain**: Wallet addresses, transaction nonces, mining simulation
+- **Bell State QRNG**: Entangled state demonstrations with correlation analysis
+- **Ry Gate QRNG**: Parallel qubit processing with statistical validation
+
+#### Advanced Statistical Analysis
+- **Bit-Level Entropy**: Individual bit randomness assessment
+- **Balance Testing**: 0/1 distribution analysis
+- **Entanglement Verification**: Correlation coefficient calculations
+- **Runs Test**: Independence testing for bit sequences
+
+#### Enhanced Visualizations
+- **Entanglement Diagrams**: Visual representation of quantum correlations
+- **Multi-Method Comparisons**: Side-by-side analysis of different QRNG approaches
+- **Real-time Bit Stream Analysis**: Live monitoring of randomness quality
+- **Probability Distribution Histograms**: Advanced statistical plotting
+
+#### Export and Integration Features
+- **Multiple Download Formats**: CSV, TXT, and JSON export options
+- **Cryptographic Hash Generation**: SHA-256 and other hash functions
+- **Raw Bit Stream Export**: Direct access to generated random bits
+- **Statistical Report Generation**: Comprehensive analysis reports
+
+#### Security Demonstrations
+- **Quantum-Generated Keys**: 128-512 bit encryption keys
+- **XOR Encryption Simulation**: Real-time encryption demonstrations
+- **Transaction Security Flow**: Complete security workflow visualization
+- **Wallet Security**: Cryptocurrency wallet generation and validation
+
 ## How It Works
 
 ### Quantum Principles
@@ -181,6 +238,7 @@ The web app provides three main demo modes:
 ### Key Differences Between Implementations
 - **qrng.py**: Focuses on detailed terminal output, statistical analysis, and file-based visualization
 - **app.py**: Provides interactive GUI, multiple application demos, and real-time feedback
+- **new.py**: Offers advanced quantum methods (Bell states, Ry gates), enhanced statistical analysis, and comprehensive export features
 
 ## Applications
 
@@ -214,7 +272,7 @@ The web app provides three main demo modes:
 - **Quantum Backend**: Qiskit AerSimulator for noiseless quantum simulation
 - **Optimization**: Configurable transpiler optimization levels (0-3)
 - **Performance**: Execution time scales with qubits and shots
-- **Limitations**: Maximum ~10 qubits for qrng.py, ~28 qubits for app.py due to computational constraints
+- **Limitations**: Maximum ~10 qubits for qrng.py, ~28 qubits for app.py and new.py due to computational constraints
 - **Dependencies**: Qiskit ecosystem, scientific Python stack, Streamlit for web interface
 
 ## Troubleshooting
@@ -249,7 +307,7 @@ Contributions are welcome! Please ensure code follows existing style and include
 
 ## Authors
 
-Team LOCO MINDS - 146
+Team LOCO MINDS 
 - G Reddy Kartheek
 - T Satyaveni
 - K Lakshmi Pavani
