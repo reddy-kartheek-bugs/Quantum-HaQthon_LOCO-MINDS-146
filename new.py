@@ -8,7 +8,7 @@ pip install qiskit qiskit-aer streamlit numpy scipy pandas matplotlib
 Run:
 streamlit run app.py
 
-Author: Hackathon Team
+Author: Loco Minds 
 """
 
 import streamlit as st
@@ -23,6 +23,267 @@ from io import StringIO
 # Qiskit imports
 from qiskit import QuantumCircuit, transpile
 from qiskit_aer import AerSimulator
+
+def bell_state_qrng(n_qubits, shots):
+    """
+    Generates random bits using quantum superposition and entanglement.
+    For 2 qubits, creates Bell state |Φ⁺⟩ = (1/√2)(|00⟩ + |11⟩).
+    For more qubits, creates GHZ-like entangled state.
+
+    Args:
+        n_qubits (int): Number of qubits to use (must be >= 2)
+        shots (int): Number of shots to run the circuit
+
+    Returns:
+        tuple: (bit_stream, counts) - Binary string and measurement counts
+    """
+    if n_qubits < 2:
+        n_qubits = 2
+    
+    # Create a quantum circuit
+    qc = QuantumCircuit(n_qubits, n_qubits)
+
+    # Create entangled state (GHZ-like for n_qubits > 2)
+    qc.h(0)  # Put first qubit in superposition
+    
+    # Entangle all qubits with CNOT gates
+    for i in range(1, n_qubits):
+        qc.cx(0, i)
+
+    # Measure all qubits
+    qc.measure(range(n_qubits), range(n_qubits))
+
+    # Execute the circuit on AerSimulator
+    simulator = AerSimulator()
+    job = simulator.run(qc, shots=shots)
+    result = job.result()
+
+    # Retrieve the measurement results (counts dictionary)
+    counts = result.get_counts(qc)
+
+    # Extract measurements in order
+    bit_stream = ''
+    for bitstring, count in sorted(counts.items()):
+        bit_stream += bitstring * count
+
+    return bit_stream, counts
+
+def ry_qrng(num_bits, shots):
+    """
+    Generates random bits using Ry(pi/2) rotation gates.
+    Each shot produces n_qubits bits, run multiple shots to get num_bits total.
+
+    Args:
+        num_bits (int): Number of random bits to generate
+        shots (int): Number of shots to run the circuit
+
+    Returns:
+        tuple: (bit_stream, counts) - Binary string and measurement counts
+    """
+    # Calculate number of qubits needed per shot
+    n_qubits = min(num_bits, 28)  # Limit to 28 qubits per circuit
+    
+    # Calculate how many shots we actually need
+    bits_per_shot = n_qubits
+    required_shots = (num_bits + bits_per_shot - 1) // bits_per_shot
+    
+    # Use provided shots or required shots, whichever is greater
+    actual_shots = max(shots, required_shots)
+
+    # Create a quantum circuit
+    qc = QuantumCircuit(n_qubits, n_qubits)
+
+    # Apply Ry(pi/2) to every qubit
+    for i in range(n_qubits):
+        qc.ry(np.pi/2, i)
+
+    # Measure all qubits
+    qc.measure(range(n_qubits), range(n_qubits))
+
+    # Execute the circuit on AerSimulator
+    simulator = AerSimulator()
+    job = simulator.run(qc, shots=actual_shots)
+    result = job.result()
+
+    # Get the measurement counts
+    counts = result.get_counts(qc)
+
+    # Convert measurements to bit stream
+    bit_stream = ''
+    for bitstring, count in sorted(counts.items()):
+        bit_stream += bitstring * count
+
+    # Truncate to requested number of bits
+    bit_stream = bit_stream[:num_bits]
+
+    return bit_stream, counts
+
+def binary_to_float(bit_stream, n_bits=32):
+    """
+    Converts binary string to list of floating point numbers in [0,1].
+    
+    Args:
+        bit_stream (str): String of binary digits
+        n_bits (int): Number of bits to use per float (default 32)
+        
+    Returns:
+        list: List of float values between 0 and 1
+    """
+    floats = []
+    for i in range(0, len(bit_stream), n_bits):
+        chunk = bit_stream[i:i+n_bits]
+        if len(chunk) == n_bits:  # Only process complete chunks
+            val = int(chunk, 2)
+            float_val = val / (2**n_bits - 1)  # Normalize to [0,1]
+            floats.append(float_val)
+    return floats
+
+def test_randomness(bit_stream, test_name='chi2', confidence=0.95):
+    """
+    Performs statistical tests on the bit stream to assess randomness.
+    
+    Args:
+        bit_stream (str): String of binary digits
+        test_name (str): Name of statistical test to perform
+        confidence (float): Confidence level for hypothesis test
+        
+    Returns:
+        dict: Test results including test statistic and p-value
+    """
+    # Convert bit stream to array of integers
+    bits = np.array([int(b) for b in bit_stream])
+    
+    if test_name == 'chi2':
+        # Chi-square test for uniform distribution of 0s and 1s
+        observed = np.bincount(bits)
+        expected = np.array([len(bits)/2, len(bits)/2])
+        chi2_stat, p_value = stats.chisquare(observed, expected)
+        
+        return {
+            'test_name': 'Chi-square test for uniformity',
+            'test_statistic': chi2_stat,
+            'p_value': p_value,
+            'reject_null': p_value < (1 - confidence)
+        }
+    
+    elif test_name == 'runs':
+        # Runs test for independence
+        runs = np.diff(bits)  # Get transitions
+        n_runs = np.count_nonzero(runs) + 1
+        n0 = np.count_nonzero(bits == 0)
+        n1 = np.count_nonzero(bits == 1)
+        
+        # Expected number of runs
+        exp_runs = 1 + (2 * n0 * n1) / len(bits)
+        # Variance of runs
+        var_runs = (2 * n0 * n1 * (2 * n0 * n1 - len(bits))) / (len(bits)**2 * (len(bits) - 1))
+        
+        z_stat = (n_runs - exp_runs) / np.sqrt(var_runs)
+        p_value = 2 * (1 - stats.norm.cdf(abs(z_stat)))
+        
+        return {
+            'test_name': 'Runs test for independence',
+            'test_statistic': z_stat,
+            'p_value': p_value,
+            'reject_null': p_value < (1 - confidence)
+        }
+    
+    return {'error': 'Invalid test name'}
+
+def save_random_numbers(numbers, filename):
+    """
+    Saves random numbers to a CSV file.
+    
+    Args:
+        numbers (list): List of random numbers to save
+        filename (str): Name of file to save to
+        
+    Returns:
+        str: CSV string of saved numbers
+    """
+    df = pd.DataFrame(numbers, columns=['random_number'])
+    csv_buffer = StringIO()
+    df.to_csv(csv_buffer, index=False)
+    return csv_buffer.getvalue()
+
+def plot_distribution(numbers, bins=50):
+    """
+    Creates histogram plot of random number distribution.
+    
+    Args:
+        numbers (list): List of random numbers to plot
+        bins (int): Number of histogram bins
+        
+    Returns:
+        tuple: (fig, ax) Matplotlib figure and axes objects
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.hist(numbers, bins=bins, density=True, alpha=0.7)
+    ax.set_title('Distribution of Generated Random Numbers')
+    ax.set_xlabel('Value')
+    ax.set_ylabel('Density')
+    
+    # Add reference uniform distribution line
+    x = np.linspace(0, 1, 100)
+    ax.plot(x, np.ones_like(x), 'r--', label='Uniform Distribution')
+    ax.legend()
+    
+    return fig, ax
+    qc.measure(range(n_qubits), range(n_qubits))
+
+    # Execute the circuit on AerSimulator
+    simulator = AerSimulator()
+    job = simulator.run(qc, shots=actual_shots)
+    result = job.result()
+
+    # Retrieve the measurement results (counts dictionary)
+    counts = result.get_counts(qc)
+
+    # Concatenate all measured bits from all shots
+    bit_stream = ''
+    for bitstring, count in sorted(counts.items()):
+        bit_stream += bitstring * count
+
+    # Return the first num_bits bits and the counts
+    return bit_stream[:num_bits], counts
+
+def verify_randomness(bit_string):
+    """
+    Verify if the bit string exhibits true randomness.
+
+    Args:
+        bit_string (str): Binary string to verify
+
+    Returns:
+        tuple: (bool, str) - True if random, message
+    """
+    if not bit_string:
+        return False, "Empty string"
+
+    n = len(bit_string)
+    count_0 = bit_string.count('0')
+    count_1 = bit_string.count('1')
+
+    if count_0 + count_1 != n:
+        return False, "Contains non-binary characters"
+
+    prob_0 = count_0 / n
+    prob_1 = count_1 / n
+
+    # Check if close to 0.5
+    if abs(prob_0 - 0.5) > 0.1:  # Allow 10% deviation
+        return False, f"Biased distribution: 0:{prob_0:.3f}, 1:{prob_1:.3f}"
+
+    # Calculate entropy
+    if prob_0 > 0 and prob_1 > 0:
+        entropy = - (prob_0 * np.log2(prob_0) + prob_1 * np.log2(prob_1))
+    else:
+        entropy = 0
+
+    if entropy < 0.9:  # Should be close to 1
+        return False, f"Low entropy: {entropy:.3f}"
+
+    return True, f"Good randomness: entropy {entropy:.3f}"
 
 # ============================================================================
 # PAGE CONFIGURATION
@@ -54,11 +315,6 @@ st.markdown("""
         color: #333333 !important;
     }
 
-    /* Sidebar styling */
-    .css-1d391kg {
-        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    }
-
     /* Button styling */
     .stButton>button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -73,100 +329,6 @@ st.markdown("""
         background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
         transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    }
-
-    /* Metric cards */
-    .css-1r6slb0 {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 10px;
-        padding: 10px;
-        backdrop-filter: blur(10px);
-    }
-
-    /* Dataframe styling */
-    .dataframe {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 10px;
-    }
-
-    /* Code blocks */
-    .stCodeBlock {
-        background: rgba(0, 0, 0, 0.3);
-        border-radius: 8px;
-    }
-
-    /* Success/info/warning messages */
-    .stSuccess, .stInfo, .stWarning {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 8px;
-        border-left: 4px solid #00f2fe;
-    }
-
-    /* Input fields */
-    .stTextInput>div>div>input, .stNumberInput>div>div>input, .stSelectbox>div>div>select {
-        background: rgba(255, 255, 255, 0.1);
-        color: black;
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        border-radius: 5px;
-    }
-
-    .stTextInput>div>div>input::placeholder, .stNumberInput>div>div>input::placeholder {
-        color: rgba(0, 0, 0, 0.6);
-    }
-
-    /* Slider styling */
-    .stSlider>div>div>div {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-
-    /* Radio buttons */
-    .stRadio>div {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 8px;
-        padding: 10px;
-        color: black !important;
-    }
-
-    .stRadio label {
-        color: black !important;
-    }
-
-    .stRadio input[type="radio"]:checked + div {
-        color: black !important;
-    }
-
-    /* Expander */
-    .streamlit-expanderHeader {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 8px;
-        color: black;
-    }
-
-    /* Checkboxes */
-    .stCheckbox>div {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 8px;
-        padding: 5px;
-        color: black !important;
-    }
-
-    .stCheckbox label {
-        color: black !important;
-    }
-
-    .stCheckbox input[type="checkbox"]:checked + div {
-        color: black !important;
-    }
-
-    /* Progress bar */
-    .stProgress>div>div>div {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-
-    /* Plot styling */
-    .js-plotly-plot {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -476,7 +638,7 @@ into random classical bits.
 st.sidebar.header("Demo Mode")
 demo_mode = st.sidebar.radio(
     "Select Demonstration",
-    ["Random Number Generation", "Secure Financial Transactions", "Cryptocurrency & Blockchain"],
+    ["Random Number Generation", "Secure Financial Transactions", "Cryptocurrency & Blockchain", "Bell State QRNG", "Ry Gate QRNG"],
     help="Choose which quantum random number demonstration to explore"
 )
 
@@ -694,6 +856,514 @@ Verification & Decryption at Receiver
             - Blockchain-based financial services
             """)
 
+elif demo_mode == "Bell State QRNG":
+    st.header("Bell State Quantum Random Number Generator")
+    st.markdown("""
+    This demo uses a maximally entangled Bell state (for 2 qubits) or GHZ-like state (for more qubits) 
+    to generate true random numbers. The state |Φ⁺⟩ = (1/√2)(|00⟩ + |11⟩) for 2 qubits creates 
+    perfect correlation: measuring both qubits always gives the same result (both 0 or both 1), 
+    but which outcome is fundamentally random.
+    """)
+
+    # Configuration section
+    st.subheader("Configuration")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        n_qubits_bell = st.number_input(
+            "Number of Qubits",
+            min_value=2,
+            max_value=10,
+            value=2,
+            step=1,
+            help="Number of entangled qubits (2 = Bell state, >2 = GHZ-like state)"
+        )
+
+    with col2:
+        shots_bell = st.number_input(
+            "Number of Shots",
+            min_value=100,
+            max_value=10000,
+            value=1024,
+            step=100,
+            help="Number of times to run the quantum circuit",
+            key="bell_shots"
+        )
+
+    # Generate button
+    generate_bell = st.button("Generate Bell State Random Numbers", type="primary")
+
+    if generate_bell:
+        with st.spinner("Generating quantum random numbers using entangled state..."):
+            # Generate random bits using Bell/GHZ state
+            random_bits, counts = bell_state_qrng(n_qubits_bell, shots_bell)
+
+        st.success(f"Generated {len(random_bits)} random bits using entangled {n_qubits_bell}-qubit state!")
+
+        # Display the quantum circuit
+        st.subheader("Entangled State Quantum Circuit")
+        
+        if n_qubits_bell == 2:
+            st.markdown("""
+            **Bell State Circuit:**
+            1. **Hadamard Gate (H)** on qubit 0: Creates superposition |+⟩ = (1/√2)(|0⟩ + |1⟩)
+            2. **CNOT Gate**: Entangles qubits, creating |Φ⁺⟩ = (1/√2)(|00⟩ + |11⟩)
+            3. **Measurements**: Collapse to either |00⟩ or |11⟩ with equal probability
+            """)
+        else:
+            st.markdown(f"""
+            **GHZ-like State Circuit ({n_qubits_bell} qubits):**
+            1. **Hadamard Gate (H)** on qubit 0: Creates superposition
+            2. **CNOT Gates**: Entangles all qubits in a chain
+            3. **Measurements**: All qubits collapse to the same state (all 0s or all 1s)
+            """)
+
+        # Create and display the circuit
+        qc_display = QuantumCircuit(n_qubits_bell, n_qubits_bell)
+        qc_display.h(0)
+        for i in range(1, n_qubits_bell):
+            qc_display.cx(0, i)
+        qc_display.measure(range(n_qubits_bell), range(n_qubits_bell))
+
+        circuit_text = qc_display.draw(output='text')
+        st.text(circuit_text)
+
+        # Show measurement statistics
+        st.subheader("Measurement Statistics")
+        st.markdown(f"Distribution from {shots_bell} shots:")
+
+        # Create DataFrame from counts
+        results_list = []
+        for bitstring, count in sorted(counts.items(), key=lambda x: x[0]):
+            results_list.append({
+                'Outcome': bitstring,
+                'Count': count,
+                'Probability': count / shots_bell,
+                'All Bits Same?': '✓' if len(set(bitstring)) == 1 else '✗'
+            })
+
+        df = pd.DataFrame(results_list)
+        st.dataframe(df.style.format({'Probability': '{:.4f}'}), use_container_width=True)
+
+        # Visualization
+        st.subheader("Distribution Visualization")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        outcomes = df['Outcome'].tolist()
+        counts_list = df['Count'].tolist()
+        
+        # Color bars based on whether all bits are the same
+        colors = ['green' if len(set(outcome)) == 1 else 'lightcoral' 
+                 for outcome in outcomes]
+
+        ax.bar(outcomes, counts_list, color=colors, edgecolor='black', linewidth=1)
+        ax.set_xlabel('Measurement Outcomes', fontsize=12)
+        ax.set_ylabel('Count', fontsize=12)
+        ax.set_title(f'Entangled State Distribution ({n_qubits_bell} qubits, {shots_bell} shots)', fontsize=14)
+        ax.grid(axis='y', alpha=0.3)
+        
+        # Add expected line for uniform outcomes
+        if n_qubits_bell == 2:
+            expected = shots_bell / 2  # Only |00⟩ and |11⟩ expected
+        else:
+            expected = shots_bell / 2  # Only all-0s and all-1s expected
+        ax.axhline(y=expected, color='blue', linestyle='--', linewidth=2, 
+                   label=f'Expected (for correlated states): {expected:.1f}')
+        ax.legend()
+        
+        plt.xticks(rotation=45 if len(outcomes) > 8 else 0)
+        plt.tight_layout()
+        st.pyplot(fig)
+
+        # Analysis
+        st.subheader("Entanglement Analysis")
+        
+        # Count how many outcomes have all bits the same
+        correlated_outcomes = sum(1 for outcome in counts.keys() if len(set(outcome)) == 1)
+        total_outcomes = len(counts)
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Total Unique Outcomes", total_outcomes)
+        with col2:
+            st.metric("Correlated Outcomes", correlated_outcomes)
+        with col3:
+            correlation_pct = (correlated_outcomes / total_outcomes * 100) if total_outcomes > 0 else 0
+            st.metric("Correlation %", f"{correlation_pct:.1f}%")
+
+        if n_qubits_bell == 2:
+            expected_outcomes = 2  # Only 00 and 11
+            st.info(f"""
+            **Bell State Verification:**
+            - Expected outcomes: |00⟩ and |11⟩ only (2 outcomes)
+            - Observed unique outcomes: {total_outcomes}
+            - Correlated outcomes: {correlated_outcomes}/{total_outcomes}
+            
+            {'✓ Perfect Bell state!' if total_outcomes == 2 and correlated_outcomes == 2 
+             else '⚠ Some uncorrelated outcomes detected (due to simulation noise)'}
+            """)
+        else:
+            st.info(f"""
+            **GHZ-like State Verification:**
+            - Expected outcomes: All qubits same (|000...0⟩ and |111...1⟩)
+            - Observed unique outcomes: {total_outcomes}
+            - Correlated outcomes: {correlated_outcomes}/{total_outcomes}
+            
+            {'✓ Perfect entanglement!' if correlated_outcomes >= total_outcomes * 0.95
+             else '⚠ Some uncorrelated outcomes detected (due to simulation noise)'}
+            """)
+
+        # Extract individual bits for randomness testing
+        st.subheader("Randomness Analysis")
+        
+        # For Bell/GHZ states, extract the first bit from each measurement
+        first_bits = ''.join([bitstring[0] for bitstring, count in counts.items() 
+                             for _ in range(count)])
+        
+        count_0 = first_bits.count('0')
+        count_1 = first_bits.count('1')
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric("First Bit: 0s", count_0)
+            st.metric("First Bit: 1s", count_1)
+        
+        with col2:
+            # Calculate entropy of first bit
+            if count_0 > 0 and count_1 > 0:
+                p0 = count_0 / len(first_bits)
+                p1 = count_1 / len(first_bits)
+                entropy = -(p0 * np.log2(p0) + p1 * np.log2(p1))
+                st.metric("First Bit Entropy", f"{entropy:.4f}")
+                st.caption("Maximum entropy = 1.0 for perfect randomness")
+            
+            balance = abs(count_0 - count_1) / len(first_bits) * 100
+            st.metric("Imbalance", f"{balance:.2f}%")
+            st.caption("Lower is better (0% = perfect balance)")
+
+        # Explanation
+        with st.expander("Understanding Entanglement"):
+            st.markdown("""
+            **What makes this special?**
+            
+            In a Bell state or GHZ state:
+            - **Before measurement**: All qubits are in a superposed, entangled state
+            - **During measurement**: Measuring one qubit instantly determines the others
+            - **After measurement**: All qubits show perfect correlation
+            
+            **Why this creates randomness:**
+            - Which outcome (all 0s or all 1s) is fundamentally unpredictable
+            - The choice happens only at measurement time
+            - No hidden variables can predict the outcome (Bell's theorem)
+            
+            **Applications:**
+            - Quantum cryptography (BB84 protocol)
+            - Quantum random number generation
+            - Testing quantum computers
+            - Fundamental physics experiments
+            """)
+
+        # Download option
+        with st.expander("Download Results"):
+            csv_buffer = StringIO()
+            df.to_csv(csv_buffer, index=False)
+            st.download_button(
+                "Download CSV",
+                csv_buffer.getvalue(),
+                f"bell_state_{n_qubits_bell}qubits_{shots_bell}shots.csv",
+                "text/csv"
+            )
+
+elif demo_mode == "Ry Gate QRNG":
+    st.header("Ry Gate Quantum Random Number Generator")
+    st.markdown("""
+    This demo uses multiple qubits with Ry(π/2) rotation gates to generate true random numbers.
+    The Ry gate rotates each qubit around the Y-axis by π/2 radians, creating an equal 
+    superposition state. Multiple qubits run in parallel for efficient random bit generation.
+    """)
+
+    # Configuration section
+    st.subheader("Configuration")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        num_bits_ry = st.number_input(
+            "Number of Random Bits",
+            min_value=1,
+            max_value=1000,
+            value=100,
+            step=10,
+            help="Total number of random bits to generate",
+            key="ry_bits"
+        )
+
+    with col2:
+        shots_ry = st.number_input(
+            "Number of Shots",
+            min_value=100,
+            max_value=10000,
+            value=1024,
+            step=100,
+            help="Number of times to run the quantum circuit",
+            key="ry_shots"
+        )
+
+    # Generate button
+    generate_ry = st.button("Generate Ry Gate Random Bits", type="primary")
+
+    if generate_ry:
+        with st.spinner("Generating quantum random bits using Ry gates..."):
+            # Generate random bits using Ry gate
+            random_bits, counts = ry_qrng(num_bits_ry, shots_ry)
+            n_qubits_used = len(list(counts.keys())[0])
+
+        st.success(f"Generated {len(random_bits)} random bits using {n_qubits_used} qubits with Ry gates!")
+
+        # Display the quantum circuit
+        st.subheader("Ry Gate Quantum Circuit")
+        st.markdown(f"""
+        **Circuit Configuration:**
+        - **Qubits Used:** {n_qubits_used}
+        - **Gate Applied:** Ry(π/2) on each qubit
+        - **Shots:** {shots_ry}
+        - **Total Bits Generated:** {len(random_bits)}
+        
+        Each qubit is independently rotated to create superposition:
+        1. **Ry(π/2) Gates**: Applied to all {n_qubits_used} qubits in parallel
+        2. **Measurements**: Each qubit collapses to 0 or 1 randomly
+        3. **Concatenation**: Results from multiple shots are combined
+        """)
+
+        # Create and display the circuit
+        qc_display = QuantumCircuit(n_qubits_used, n_qubits_used)
+        for i in range(n_qubits_used):
+            qc_display.ry(np.pi/2, i)
+        qc_display.measure(range(n_qubits_used), range(n_qubits_used))
+
+        circuit_text = qc_display.draw(output='text')
+        st.text(circuit_text)
+
+        # Show measurement statistics by outcome
+        st.subheader("Measurement Statistics")
+        st.markdown(f"Distribution from {shots_ry} shots ({n_qubits_used}-qubit outcomes):")
+
+        # Create DataFrame from counts
+        results_list = []
+        for bitstring, count in sorted(counts.items(), key=lambda x: int(x[0], 2)):
+            results_list.append({
+                'Outcome': bitstring,
+                'Integer': int(bitstring, 2),
+                'Count': count,
+                'Probability': count / shots_ry
+            })
+
+        df = pd.DataFrame(results_list)
+        
+        # Show first 20 outcomes if too many
+        if len(df) > 20:
+            st.dataframe(df.head(20).style.format({'Probability': '{:.4f}'}), use_container_width=True)
+            st.caption(f"Showing first 20 of {len(df)} unique outcomes")
+        else:
+            st.dataframe(df.style.format({'Probability': '{:.4f}'}), use_container_width=True)
+
+        # Bit-level analysis
+        st.subheader("Bit-Level Randomness Analysis")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        count_0 = random_bits.count('0')
+        count_1 = random_bits.count('1')
+        
+        with col1:
+            st.metric("Total Bits Generated", len(random_bits))
+        with col2:
+            st.metric("0s Count", count_0)
+        with col3:
+            st.metric("1s Count", count_1)
+
+        # Bit distribution visualization
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+        
+        # Left plot: Bit balance
+        ax1.bar(['0', '1'], [count_0, count_1], color=['#3498db', '#e74c3c'], edgecolor='black', linewidth=1)
+        expected_per_bit = len(random_bits) / 2
+        ax1.axhline(y=expected_per_bit, color='green', linestyle='--', linewidth=2, 
+                   label=f'Expected: {expected_per_bit:.1f}')
+        ax1.set_xlabel('Bit Value', fontsize=12)
+        ax1.set_ylabel('Count', fontsize=12)
+        ax1.set_title('Bit Distribution (0s vs 1s)', fontsize=14)
+        ax1.legend()
+        ax1.grid(axis='y', alpha=0.3)
+
+        # Right plot: Outcome distribution
+        if len(df) <= 32:  # Only plot if manageable number of outcomes
+            outcomes_plot = df['Outcome'].tolist()
+            counts_plot = df['Count'].tolist()
+            
+            ax2.bar(range(len(outcomes_plot)), counts_plot, color='#9b59b6', edgecolor='black', linewidth=0.5)
+            expected_per_outcome = shots_ry / (2 ** n_qubits_used)
+            ax2.axhline(y=expected_per_outcome, color='orange', linestyle='--', linewidth=2,
+                       label=f'Expected (Uniform): {expected_per_outcome:.1f}')
+            ax2.set_xlabel('Outcome Index', fontsize=12)
+            ax2.set_ylabel('Count', fontsize=12)
+            ax2.set_title(f'{n_qubits_used}-Qubit Outcome Distribution', fontsize=14)
+            ax2.legend()
+            ax2.grid(axis='y', alpha=0.3)
+        else:
+            # For many outcomes, show histogram of probabilities
+            probabilities = df['Probability'].values
+            ax2.hist(probabilities, bins=30, color='#9b59b6', edgecolor='black', alpha=0.7)
+            expected_prob = 1 / (2 ** n_qubits_used)
+            ax2.axvline(x=expected_prob, color='orange', linestyle='--', linewidth=2,
+                       label=f'Expected: {expected_prob:.4f}')
+            ax2.set_xlabel('Probability', fontsize=12)
+            ax2.set_ylabel('Frequency', fontsize=12)
+            ax2.set_title('Probability Distribution Histogram', fontsize=14)
+            ax2.legend()
+            ax2.grid(axis='y', alpha=0.3)
+
+        plt.tight_layout()
+        st.pyplot(fig)
+
+        # Statistical Analysis
+        st.subheader("Statistical Analysis")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### Bit Entropy")
+            
+            # Calculate bit-level entropy
+            if count_0 > 0 and count_1 > 0:
+                p0 = count_0 / len(random_bits)
+                p1 = count_1 / len(random_bits)
+                bit_entropy = -(p0 * np.log2(p0) + p1 * np.log2(p1))
+            else:
+                bit_entropy = 0
+            
+            st.metric("Shannon Entropy", f"{bit_entropy:.6f}")
+            st.write("**Maximum Entropy:** 1.0 bit")
+            st.write(f"**Entropy Ratio:** {bit_entropy*100:.2f}%")
+            
+            if bit_entropy > 0.99:
+                st.success("Excellent randomness - near perfect entropy!")
+            elif bit_entropy > 0.95:
+                st.info("Good randomness - high entropy")
+            else:
+                st.warning("Lower entropy - may need more shots")
+        
+        with col2:
+            st.markdown("#### Balance Test")
+            
+            # Calculate balance metrics
+            balance_diff = abs(count_0 - count_1)
+            balance_pct = (balance_diff / len(random_bits)) * 100
+            
+            st.metric("Imbalance", f"{balance_pct:.3f}%")
+            st.write(f"**Difference:** {balance_diff} bits")
+            st.write(f"**Expected:** ~0% (perfect balance)")
+            
+            if balance_pct < 1:
+                st.success("Excellent balance!")
+            elif balance_pct < 3:
+                st.info("Good balance")
+            else:
+                st.warning("Noticeable imbalance - consider more shots")
+
+        # Ry Gate Theory
+        st.subheader("Ry Gate Theory")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            **Ry(θ) Rotation Matrix:**
+            ```
+            Ry(θ) = [[cos(θ/2), -sin(θ/2)],
+                     [sin(θ/2),  cos(θ/2)]]
+            ```
+            
+            **For θ = π/2:**
+            - cos(π/4) = 1/√2 ≈ 0.707
+            - sin(π/4) = 1/√2 ≈ 0.707
+            - Ry(π/2)|0⟩ = (1/√2)(|0⟩ + |1⟩)
+            """)
+        
+        with col2:
+            st.markdown("""
+            **Why Ry(π/2)?**
+            
+            - Creates equal superposition
+            - 50% probability for |0⟩
+            - 50% probability for |1⟩
+            - Equivalent to Hadamard for RNG
+            - But different phase properties
+            """)
+
+        # Applications
+        with st.expander("Applications of Ry-based QRNG"):
+            st.markdown("""
+            **Real-World Applications:**
+            
+            🎲 **Gaming & Simulations**
+            - Provably fair random number generation
+            - Monte Carlo simulations
+            - Procedural generation
+            
+            🔐 **Cryptography**
+            - One-time pad generation
+            - Initialization vectors
+            - Nonce generation
+            
+            🧪 **Scientific Research**
+            - Unbiased sampling
+            - Statistical testing
+            - Quantum algorithm initialization
+            
+            **Advantages of Ry Gates:**
+            - Parallel generation across multiple qubits
+            - Deterministic rotation (easier to verify)
+            - Can be adjusted for different probability distributions
+            - Natural fit for quantum hardware
+            """)
+
+        # Download option
+        with st.expander("Download Results & Raw Bits"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Download statistics CSV
+                csv_buffer = StringIO()
+                df.to_csv(csv_buffer, index=False)
+                st.download_button(
+                    "Download Outcome Statistics (CSV)",
+                    csv_buffer.getvalue(),
+                    f"ry_qrng_{n_qubits_used}qubits_{shots_ry}shots_stats.csv",
+                    "text/csv"
+                )
+            
+            with col2:
+                # Download raw bits
+                st.download_button(
+                    "Download Raw Bits (TXT)",
+                    random_bits,
+                    f"ry_qrng_{len(random_bits)}bits.txt",
+                    "text/plain"
+                )
+
+        # Sample bits display
+        with st.expander("View Raw Bit Stream"):
+            st.markdown("**First 500 bits:**")
+            st.code(random_bits[:500] + ("..." if len(random_bits) > 500 else ""), language=None)
+            
+            if len(random_bits) > 500:
+                st.markdown("**Last 500 bits:**")
+                st.code("..." + random_bits[-500:], language=None)
+
 elif demo_mode == "Cryptocurrency & Blockchain":
     st.header("Cryptocurrency & Blockchain Demo")
     st.markdown("""
@@ -784,7 +1454,6 @@ elif demo_mode == "Cryptocurrency & Blockchain":
             st.success(f"Generated {num_transactions} secure transaction nonces!")
 
             # Display transactions table
-            import pandas as pd
             df = pd.DataFrame(transactions)
             st.dataframe(df, use_container_width=True)
 
@@ -938,14 +1607,14 @@ elif demo_mode == "Random Number Generation" and run_button:
             quantum_df.style.format({
                 'Probability': '{:.4f}'
             }),
-            width='stretch'
+            use_container_width=True
         )
     else:
         st.dataframe(
             quantum_df[['Integer', 'Count', 'Probability']].style.format({
                 'Probability': '{:.4f}'
             }),
-            width='stretch'
+            use_container_width=True
         )
     
     # ========================================================================
@@ -1125,7 +1794,7 @@ elif demo_mode == "Random Number Generation" and run_button:
 
 else:
     # Initial state - show instructions
-    st.info("Configure the parameters in the sidebar and click Generate Random Numbers to start!")
+    st.info("Configure the parameters and click the button to start!")
 
     st.markdown("""
     ### How It Works
