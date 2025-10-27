@@ -1,5 +1,5 @@
 # Quantum Random Number Generator (QRNG) Project
-# TEAM LOCO MINDS - 146
+# TEAM LOCO MINDS
 
 # QRNG
 
